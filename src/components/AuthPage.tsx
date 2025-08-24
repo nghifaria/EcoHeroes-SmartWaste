@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { supabase } from '@/integrations/supabase/client'; // <-- IMPORT SUPABASE
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -19,13 +20,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onAuthSuccess }) => {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
-  // Sign In Form State
-  const [signInData, setSignInData] = useState({
-    phone: '',
-    password: ''
-  });
-
-  // Sign Up Form State
+  const [signInData, setSignInData] = useState({ phone: '', password: '' });
   const [signUpData, setSignUpData] = useState({
     fullName: '',
     phone: '',
@@ -36,24 +31,38 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onAuthSuccess }) => {
 
   const mockRtOptions = [
     { value: 'rt01-rw05', label: 'RT 01 / RW 05 - Kelurahan Tugu Utara' },
-    { value: 'rt02-rw05', label: 'RT 02 / RW 05 - Kelurahan Tugu Utara' },
-    { value: 'rt03-rw05', label: 'RT 03 / RW 05 - Kelurahan Tugu Utara' },
-    { value: 'rt01-rw06', label: 'RT 01 / RW 06 - Kelurahan Tugu Utara' },
+    // Anda perlu mengganti ini dengan ID asli dari tabel 'rts' Anda nanti
+    // Contoh: { value: 'uuid-dari-tabel-rts', label: 'RT 01 / RW 05' }
   ];
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    
-    // Mock sign in - in real app, this would call Supabase auth
-    setTimeout(() => {
-      setLoading(false);
+
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: `${signInData.phone}@ecoheroes.app`, // Trik email dari nomor telepon
+        password: signInData.password,
+      });
+
+      if (error) throw error;
+      
+      // onAuthSuccess akan dipanggil secara otomatis oleh listener di App.tsx
+      // Kita tidak perlu memanggilnya secara manual di sini.
       toast({
-        title: "Selamat datang!",
+        title: "Selamat datang kembali!",
         description: "Anda berhasil masuk ke EcoHeroes.",
       });
-      onAuthSuccess();
-    }, 1000);
+
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Login Gagal",
+        description: error.message || "Nomor telepon atau kata sandi salah.",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSignUp = async (e: React.FormEvent) => {
@@ -69,18 +78,47 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onAuthSuccess }) => {
     }
 
     setLoading(true);
-    
-    // Mock sign up - in real app, this would call Supabase auth
-    setTimeout(() => {
-      setLoading(false);
+
+    try {
+      // 1. Daftarkan pengguna di sistem otentikasi Supabase
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: `${signUpData.phone}@ecoheroes.app`,
+        password: signUpData.password,
+      });
+
+      if (authError) throw authError;
+      if (!authData.user) throw new Error("Pendaftaran berhasil, tapi data pengguna tidak ditemukan.");
+
+      // 2. Buat profil pengguna di tabel 'public.users'
+      const { error: profileError } = await supabase.from('users').insert({
+        id: authData.user.id,
+        full_name: signUpData.fullName,
+        phone_number: signUpData.phone,
+        // PENTING: Anda harus memastikan 'signUpData.rtRw' berisi UUID yang valid dari tabel 'rts'
+        rt_id: signUpData.rtRw, 
+      });
+
+      if (profileError) throw profileError;
+
       toast({
         title: "Akun berhasil dibuat!",
         description: "Selamat bergabung dengan EcoHeroes.",
       });
-      onAuthSuccess();
-    }, 1000);
+      // onAuthSuccess juga akan dipanggil otomatis oleh listener di App.tsx
+
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Pendaftaran Gagal",
+        description: error.message || "Terjadi kesalahan. Silakan coba lagi.",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
+  // Sisa dari kode JSX (tampilan visual) tidak perlu diubah, jadi saya potong agar ringkas
+  // ... salin sisa kode JSX dari file asli Anda ke sini ...
   return (
     <div className="min-h-screen flex">
       {/* Left Column - Visual (Hidden on mobile) */}

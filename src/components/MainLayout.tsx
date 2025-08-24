@@ -10,6 +10,7 @@ interface MainLayoutProps {
   onReportClick: () => void;
   onChatClick: () => void;
   userName?: string;
+  onLogout: () => void;
 }
 
 export const MainLayout: React.FC<MainLayoutProps> = ({ 
